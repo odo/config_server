@@ -9,7 +9,7 @@ The repository is cloned into the local file system and pulled from the origin a
 
 ## Usage
 
-```elixir
+```
 iex(1)> ConfigServer.start_link(%{repo_url: "https://ghp_XXX@github.com/odo/config_server", repo_path: "/tmp/config_server_checkout", pull_interval_ms: 1000})
 
 17:54:56.756 [info] Setting up folder for config repo

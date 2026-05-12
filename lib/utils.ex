@@ -5,15 +5,11 @@ defmodule ConfigServer.Utils do
       |> Enum.map(
         fn(entry) ->
           full_path = Path.join(path, entry)
-          case File.dir?(full_path) do
-            true ->
-              {entry, parse_directory(full_path)}
-            false ->
-              case {String.starts_with?(entry, "."), String.ends_with?(entry, ".json")} do
-                {true, _} -> nil
-                {_, true} ->  {Path.rootname(entry), JSON.decode!(File.read!(full_path))}
-                {_, false} -> {entry, File.read!(full_path)}
-              end
+          case {String.starts_with?(entry, "."), File.dir?(full_path), String.ends_with?(entry, ".json")} do
+            {true, _,    _}    -> nil
+            {_,    true, _}    -> {entry, parse_directory(full_path)}
+            {_,    _,   true} ->  {Path.rootname(entry), JSON.decode!(File.read!(full_path))}
+            {_,    _,   false} -> {entry, File.read!(full_path)}
           end
         end
       )

@@ -1,4 +1,8 @@
 defmodule ConfigServer do
+  @moduledoc """
+  This module implements a GenServer that monitors a git repository.
+  The content of the repository is parsed and changes are handed to a callback.
+  """
   use GenServer
 
   alias ConfigServer.{Parser, Git}
@@ -13,6 +17,9 @@ defmodule ConfigServer do
   ]
 
   # API
+  @doc """
+  Retrieve the current config.
+  """
   def config() do
     GenServer.call(__MODULE__, :config)
   end

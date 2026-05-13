@@ -20,6 +20,6 @@ defmodule ConfigServer.Git do
 
   def commit_hash(repo_path) do
     {commit_hash, 0} = System.cmd("git", ["log", "-1", "--format=%H"], cd: repo_path)
-    commit_hash
+    commit_hash |> String.trim
   end
 end

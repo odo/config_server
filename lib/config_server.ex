@@ -36,7 +36,8 @@ defmodule ConfigServer do
     initial_state = %ConfigServer{
       repo_url: repo_url,
       repo_path: repo_path,
-      pull_interval_ms: pull_interval_ms
+      pull_interval_ms: pull_interval_ms,
+      state_change_fun: state_change_fun
     }
     schedule_next_pull(initial_state)
     pull_configs_from_repo(initial_state)
@@ -63,6 +64,7 @@ defmodule ConfigServer do
   defp parse_configs_from_filesystem(%ConfigServer{repo_path: repo_path, state_change_fun: state_change_fun} = state) do
     next_config = Parser.parse_directory(repo_path)
     next_commit_hash = Git.commit_hash(repo_path)
+
     next_state =
       %ConfigServer{state | 
         config:      next_config, 

@@ -111,5 +111,4 @@ defmodule ConfigServer do
     }
   end
 
-
 end

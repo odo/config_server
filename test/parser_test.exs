@@ -1,7 +1,7 @@
-defmodule UtilsTest do
+defmodule ParserTest do
   use ExUnit.Case
-  doctest ConfigServer.Utils
-  alias ConfigServer.Utils
+  doctest ConfigServer.Parser
+  alias ConfigServer.Parser
 
   test "parse directory" do
     expected = %{
@@ -12,7 +12,7 @@ defmodule UtilsTest do
         "something.txt" => "at the end of the universe\n"
       }
     }
-    assert expected == Utils.parse_directory("./test/test_dir")
+    assert expected == Parser.parse_directory("./test/test_dir")
   end
 
 end

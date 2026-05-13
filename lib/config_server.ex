@@ -1,16 +1,15 @@
 defmodule ConfigServer do
   use GenServer
 
-  alias ConfigServer.Utils
-
-  require Logger
+  alias ConfigServer.{Parser, Git}
 
   defstruct [
     :repo_url,
     :repo_path,
     :config,
     :commit_hash,
-    :pull_interval_ms
+    :pull_interval_ms,
+    :state_change_fun
   ]
 
   # API
@@ -23,14 +22,17 @@ defmodule ConfigServer do
       repo_url: String.t(),
       repo_path: String.t(),
       pull_interval_ms: integer(),
+      state_change_fun: nil | fun()
     }) :: {:ok, pid()}
-  def start_link(%{repo_url: _, repo_path: _, pull_interval_ms: _} = args) do
+  def start_link(%{repo_url: _, repo_path: _, pull_interval_ms: _, state_change_fun: _} = args) do
     {:ok, _} = GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
 
   @impl true
-  def init(%{repo_url: repo_url, repo_path: repo_path, pull_interval_ms: pull_interval_ms})
-    when is_binary(repo_url) and is_binary(repo_path) and is_integer(pull_interval_ms) do
+  def init(%{repo_url: repo_url, repo_path: repo_path, pull_interval_ms: pull_interval_ms, state_change_fun: state_change_fun})
+    when is_binary(repo_url) and is_binary(repo_path) and
+         is_integer(pull_interval_ms) and pull_interval_ms > 0 and
+         (is_nil(state_change_fun) or is_function(state_change_fun)) do
     initial_state = %ConfigServer{
       repo_url: repo_url,
       repo_path: repo_path,
@@ -50,7 +52,6 @@ defmodule ConfigServer do
   def handle_info(:pull_configs, state) do
     schedule_next_pull(state)
     spawn(fn() -> pull_configs_from_repo(state) end)
-
     {:noreply, state}
   end
 
@@ -59,33 +60,23 @@ defmodule ConfigServer do
     {:noreply, parse_configs_from_filesystem(state)}
   end
 
-  defp parse_configs_from_filesystem(%ConfigServer{repo_path: repo_path} = state) do
-    config = Utils.parse_directory(repo_path)
-    {commit_hash, 0} = System.cmd("git", ["log", "-1", "--format=%H"], cd: repo_path)
+  defp parse_configs_from_filesystem(%ConfigServer{repo_path: repo_path, state_change_fun: state_change_fun} = state) do
+    next_state =
+      %ConfigServer{state | 
+        config:      Parser.parse_directory(repo_path),
+        commit_hash: Git.commit_hash(repo_path)
+      }
 
-    %ConfigServer{state | 
-      config: config,
-      commit_hash: commit_hash
-    }
+    if is_function(state_change_fun) && state.commit_hash != next_state.commit_hash do
+      spawn(fn() -> state_change_fun.(state, next_state) end)
+    end
+
+    next_state
   end
 
   defp pull_configs_from_repo(%ConfigServer{repo_path: repo_path, repo_url: repo_url}) do
-    if !File.exists?(repo_path) do
-        Logger.info("Setting up folder for config repo")
-        {_, 0} = System.cmd("mkdir", ["-p", repo_path])
-      end
-
-      git_path = Path.join(repo_path, ".git")
-      case File.exists?(git_path) do
-        true ->
-          Logger.info("Pulling config repo")
-          {_, 0} = System.cmd("git", ["pull"], cd: repo_path)
-        false ->
-          Logger.info("Cloning config repo")
-          {_, 0} = System.cmd("git", ["clone", repo_url, repo_path])
-      end
-
-      GenServer.cast(__MODULE__, :parse_configs)
+    Git.refresh(repo_url, repo_path)
+    GenServer.cast(__MODULE__, :parse_configs)
   end
 
   def schedule_next_pull(%ConfigServer{pull_interval_ms: pull_interval_ms}) do

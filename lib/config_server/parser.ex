@@ -1,4 +1,4 @@
-defmodule ConfigServer.Utils do
+defmodule ConfigServer.Parser do
   def parse_directory(path) do
       path
       |> File.ls!()

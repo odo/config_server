@@ -61,10 +61,12 @@ defmodule ConfigServer do
   end
 
   defp parse_configs_from_filesystem(%ConfigServer{repo_path: repo_path, state_change_fun: state_change_fun} = state) do
+    next_config = Parser.parse_directory(repo_path)
+    next_commit_hash = Git.commit_hash(repo_path)
     next_state =
       %ConfigServer{state | 
-        config:      Parser.parse_directory(repo_path),
-        commit_hash: Git.commit_hash(repo_path)
+        config:      next_config, 
+        commit_hash: next_commit_hash 
       }
 
     if is_function(state_change_fun) && state.commit_hash != next_state.commit_hash do

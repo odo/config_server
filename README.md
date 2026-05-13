@@ -7,6 +7,18 @@ Many applications need configuration that might change at runtime.
 
 The repository is cloned into the local file system and pulled from the origin at regular intervals.
 
+## Installation
+
+The package can be installed by adding `config_server` to your list of dependencies in `mix.exs`:
+
+```elixir
+def deps do
+  [
+    {:config_server, "~> 0.1.0"}
+  ]
+end
+```
+
 ## Configuration
 
 ```

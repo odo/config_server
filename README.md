@@ -7,11 +7,7 @@ Many applications need configuration that might change at runtime.
 
 The repository is cloned into the local file system and pulled from the origin at regular intervals.
 
-## Setup
-
-In your application, add `ConfigServer` to the children of your top supervisor.
-
-And set the configuration:
+## Configuration
 
 ```
 config :config_server,
@@ -20,6 +16,8 @@ config :config_server,
   pull_interval_ms: 1000,
   state_change_fun: fn(old_config, new_config) -> IO.inspect({old_config, new_config}) end
 ```
+
+`state_change_fun` can be skipped.
 
 ## Usage
 

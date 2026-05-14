@@ -33,10 +33,11 @@ config :config_server,
 
 ## Usage
 
+To retrieve the current config, call `ConfigServer.config()`.
+
 Whenever a new version of the config is pulled, `state_change_fun` will be called with the old config and  the new config as arguments.
 At application start it will be called once with `nil` and the current config.
 
-To retrieve the current config, call `ConfigServer.config()`.
 
 ## Format
 

@@ -13,7 +13,8 @@ defmodule ConfigServer do
     :config,
     :commit_hash,
     :pull_interval_ms,
-    :state_change_fun
+    :state_change_fun,
+    :ets_table
   ]
 
   # API
@@ -21,7 +22,8 @@ defmodule ConfigServer do
   Retrieve the current config.
   """
   def config() do
-    GenServer.call(__MODULE__, :config)
+    [{:config, config}] = :ets.lookup(__MODULE__, :config)
+    config
   end
 
   # Server functions
@@ -52,54 +54,36 @@ defmodule ConfigServer do
       repo_url: repo_url,
       repo_path: repo_path,
       pull_interval_ms: pull_interval_ms,
-      state_change_fun: state_change_fun
+      state_change_fun: state_change_fun,
+      ets_table: :ets.new(__MODULE__, [:set, :protected, :named_table, {:read_concurrency, true}])
     }
-    schedule_next_pull(initial_state)
-    pull_configs_from_repo(initial_state)
-    {:ok, parse_configs_from_filesystem(initial_state)}
+    schedule_next_pull(0)
+    {:ok, initial_state}
   end
 
   @impl true
-  def handle_call(:config, _from, %{config: config} = state) do
-    {:reply, config, state}
-  end
-
-  @impl true
-  def handle_info(:pull_configs, state) do
-    schedule_next_pull(state)
-    spawn(fn() -> pull_configs_from_repo(state) end)
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_cast(:parse_configs, state) do
-    {:noreply, parse_configs_from_filesystem(state)}
-  end
-
-  defp parse_configs_from_filesystem(%ConfigServer{repo_path: repo_path, state_change_fun: state_change_fun} = state) do
-    next_config = Parser.parse_directory(repo_path)
-    next_commit_hash = Git.commit_hash(repo_path)
-
+  def handle_info(
+    :pull_configs,
+    %ConfigServer{
+      repo_url: repo_url, repo_path: repo_path,
+      pull_interval_ms: pull_interval_ms, state_change_fun: state_change_fun} = state
+  ) do
+    schedule_next_pull(pull_interval_ms)
+    Git.refresh(repo_url, repo_path)
     next_state =
       %ConfigServer{state | 
-        config:      next_config, 
-        commit_hash: next_commit_hash 
+        config:      Parser.parse_directory(repo_path), 
+        commit_hash: Git.commit_hash(repo_path) 
       }
-
+    :ets.insert(__MODULE__, {:config, next_state.config})
     if is_function(state_change_fun) && state.commit_hash != next_state.commit_hash do
       spawn(fn() -> state_change_fun.(state.config, next_state.config) end)
     end
-
-    next_state
+    {:noreply, next_state}
   end
 
-  defp pull_configs_from_repo(%ConfigServer{repo_path: repo_path, repo_url: repo_url}) do
-    Git.refresh(repo_url, repo_path)
-    GenServer.cast(__MODULE__, :parse_configs)
-  end
-
-  defp schedule_next_pull(%ConfigServer{pull_interval_ms: pull_interval_ms}) do
-    Process.send_after(self(), :pull_configs, pull_interval_ms, [])
+  defp schedule_next_pull(delay) when is_integer(delay) do
+    Process.send_after(self(), :pull_configs, delay, [])
   end
 
   def get_application_env() do

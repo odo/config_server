@@ -9,6 +9,7 @@ defmodule ConfigServer do
 
   defstruct [
     :repo_url,
+    :git_ssh_command,
     :repo_path,
     :config,
     :commit_hash,
@@ -34,24 +35,28 @@ defmodule ConfigServer do
 
   @spec start_link(%{
       repo_url: String.t(),
+      git_ssh_command: String.t() | nil,
       repo_path: String.t(),
       pull_interval_ms: integer(),
       state_change_fun: nil | fun()
     }) :: {:ok, pid()}
-  def start_link(%{repo_url: repo_url, repo_path: repo_path, pull_interval_ms: pull_interval_ms, state_change_fun: state_change_fun} = args)
+  def start_link(%{repo_url: repo_url, repo_path: repo_path, git_ssh_command: git_ssh_command, pull_interval_ms: pull_interval_ms, state_change_fun: state_change_fun} = args)
     when is_binary(repo_url) and is_binary(repo_path) and
+         (is_binary(git_ssh_command) or is_nil(git_ssh_command)) and
          is_integer(pull_interval_ms) and pull_interval_ms > 0 and
          (is_nil(state_change_fun) or is_function(state_change_fun)) do
     {:ok, _} = GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
 
   @impl true
-  def init(%{repo_url: repo_url, repo_path: repo_path, pull_interval_ms: pull_interval_ms, state_change_fun: state_change_fun})
+  def init(%{repo_url: repo_url, repo_path: repo_path, git_ssh_command: git_ssh_command, pull_interval_ms: pull_interval_ms, state_change_fun: state_change_fun})
     when is_binary(repo_url) and is_binary(repo_path) and
+         (is_binary(git_ssh_command) or is_nil(git_ssh_command)) and
          is_integer(pull_interval_ms) and pull_interval_ms > 0 and
          (is_nil(state_change_fun) or is_function(state_change_fun)) do
     initial_state = %ConfigServer{
       repo_url: repo_url,
+      git_ssh_command: git_ssh_command,
       repo_path: repo_path,
       pull_interval_ms: pull_interval_ms,
       state_change_fun: state_change_fun,
@@ -65,11 +70,11 @@ defmodule ConfigServer do
   def handle_info(
     :pull_configs,
     %ConfigServer{
-      repo_url: repo_url, repo_path: repo_path,
+      repo_url: repo_url, git_ssh_command: git_ssh_command, repo_path: repo_path,
       pull_interval_ms: pull_interval_ms, state_change_fun: state_change_fun} = state
   ) do
     schedule_next_pull(pull_interval_ms)
-    Git.refresh(repo_url, repo_path)
+    Git.refresh(repo_url, repo_path, git_ssh_command)
     next_state =
       %ConfigServer{state | 
         config:      Parser.parse_directory(repo_path), 
@@ -89,6 +94,7 @@ defmodule ConfigServer do
   def get_application_env() do
     %{
       repo_url: Application.get_env(:config_server, :repo_url), 
+      git_ssh_command: Application.get_env(:config_server, :git_ssh_command), 
       repo_path: Application.get_env(:config_server, :repo_path),
       pull_interval_ms: Application.get_env(:config_server, :pull_interval_ms), 
       state_change_fun: Application.get_env(:config_server, :state_change_fun)

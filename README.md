@@ -21,6 +21,8 @@ end
 
 ## Configuration
 
+If you are using `http`:
+
 ```
 config :config_server,
   repo_url: "https://ghp_XXX@github.com/odo/config_server",
@@ -28,6 +30,18 @@ config :config_server,
   pull_interval_ms: 1000,
   state_change_fun: fn(old_config, new_config) -> IO.inspect({old_config, new_config}) end
 ```
+
+If you are using `ssh`:
+
+```
+config :config_server,
+  repo_url: "git@github.com:odo/config_server",
+  git_ssh_command: "ssh -i ~/.ssh/my_private_key", 
+  repo_path: "/tmp/config_server_checkout",
+  pull_interval_ms: 1000,
+  state_change_fun: fn(old_config, new_config) -> IO.inspect({old_config, new_config}) end
+```
+
 
 `state_change_fun` can be skipped.
 

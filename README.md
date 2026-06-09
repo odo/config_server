@@ -43,7 +43,7 @@ config :config_server,
 ```
 
 
-`state_change_fun` can be skipped.
+`state_change_fun` can be skipped or can be defined as `{module, function}`.
 
 ## Usage
 

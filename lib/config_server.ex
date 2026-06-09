@@ -44,7 +44,7 @@ defmodule ConfigServer do
     when is_binary(repo_url) and is_binary(repo_path) and
          (is_binary(git_ssh_command) or is_nil(git_ssh_command)) and
          is_integer(pull_interval_ms) and pull_interval_ms > 0 and
-         (is_nil(state_change_fun) or is_function(state_change_fun)) do
+         (is_nil(state_change_fun) or is_function(state_change_fun) or is_tuple(state_change_fun)) do
     {:ok, _} = GenServer.start_link(__MODULE__, args, name: __MODULE__)
   end
 
@@ -53,7 +53,7 @@ defmodule ConfigServer do
     when is_binary(repo_url) and is_binary(repo_path) and
          (is_binary(git_ssh_command) or is_nil(git_ssh_command)) and
          is_integer(pull_interval_ms) and pull_interval_ms > 0 and
-         (is_nil(state_change_fun) or is_function(state_change_fun)) do
+         (is_nil(state_change_fun) or is_function(state_change_fun) or is_tuple(state_change_fun)) do
     initial_state = %ConfigServer{
       repo_url: repo_url,
       git_ssh_command: git_ssh_command,
@@ -81,8 +81,8 @@ defmodule ConfigServer do
         commit_hash: Git.commit_hash(repo_path) 
       }
     :ets.insert(__MODULE__, {:config, next_state.config})
-    if is_function(state_change_fun) && state.commit_hash != next_state.commit_hash do
-      spawn(fn() -> state_change_fun.(state.config, next_state.config) end)
+    if state_change_fun != nil && state.commit_hash != next_state.commit_hash do
+      execute(state_change_fun, state.config, next_state.config)
     end
     {:noreply, next_state}
   end
@@ -99,6 +99,14 @@ defmodule ConfigServer do
       pull_interval_ms: Application.get_env(:config_server, :pull_interval_ms), 
       state_change_fun: Application.get_env(:config_server, :state_change_fun)
     }
+  end
+  
+  defp execute({module, function}, old_config, new_config) do
+      spawn(fn() -> apply(module, function, [old_config, new_config]) end)
+  end
+
+  defp execute(state_change_fun, old_config, new_config) when is_function(state_change_fun) do
+      spawn(fn() -> state_change_fun.(old_config, new_config) end)
   end
 
 end

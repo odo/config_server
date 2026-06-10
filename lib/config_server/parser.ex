@@ -5,7 +5,7 @@ defmodule ConfigServer.Parser do
       |> Enum.map(
         fn(entry) ->
           full_path = Path.join(path, entry)
-          case {String.starts_with?(entry, "."), File.dir?(full_path), String.ends_with?(entry, ".json")} do
+          case {is_ignored?(entry), File.dir?(full_path), String.ends_with?(entry, ".json")} do
             {true, _,    _}    -> nil
             {_,    true, _}    -> {entry, parse_directory(full_path)}
             {_,    _,   true} ->  {Path.rootname(entry), JSON.decode!(File.read!(full_path))}
@@ -15,5 +15,11 @@ defmodule ConfigServer.Parser do
       )
       |> Enum.reject(&is_nil/1)
       |> Enum.into(%{})
+  end
+
+  defp is_ignored?(entry) do
+    String.starts_with?(entry, ".")
+    || String.match?(entry, ~r/^readme/i)
+    || String.match?(entry, ~r/^license/i)
   end
 end

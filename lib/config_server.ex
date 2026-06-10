@@ -3,6 +3,8 @@ defmodule ConfigServer do
   This module implements a GenServer that monitors a git repository.
   The content of the repository is parsed and changes are handed to a callback.
   """
+
+  require Logger
   use GenServer
 
   alias ConfigServer.{Parser, Git}
@@ -78,6 +80,7 @@ defmodule ConfigServer do
       {:ok, ^commit_hash} ->
         {:noreply, state}
       {:ok, next_commit_hash} ->
+        Logger.info("Loading new config from #{repo_url}: #{next_commit_hash}")
         next_state =
           %ConfigServer{state | 
             config:      Parser.parse_directory(repo_path), 

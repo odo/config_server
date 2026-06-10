@@ -71,20 +71,24 @@ defmodule ConfigServer do
     :pull_configs,
     %ConfigServer{
       repo_url: repo_url, git_ssh_command: git_ssh_command, repo_path: repo_path,
-      pull_interval_ms: pull_interval_ms, state_change_fun: state_change_fun} = state
+      pull_interval_ms: pull_interval_ms, state_change_fun: state_change_fun, commit_hash: commit_hash} = state
   ) do
     schedule_next_pull(pull_interval_ms)
-    Git.refresh(repo_url, repo_path, git_ssh_command)
-    next_state =
-      %ConfigServer{state | 
-        config:      Parser.parse_directory(repo_path), 
-        commit_hash: Git.commit_hash(repo_path) 
-      }
-    :ets.insert(__MODULE__, {:config, next_state.config})
-    if state_change_fun != nil && state.commit_hash != next_state.commit_hash do
-      execute(state_change_fun, state.config, next_state.config)
+    case Git.refresh(repo_url, repo_path, git_ssh_command) do
+      {:ok, ^commit_hash} ->
+        {:noreply, state}
+      {:ok, next_commit_hash} ->
+        next_state =
+          %ConfigServer{state | 
+            config:      Parser.parse_directory(repo_path), 
+            commit_hash: next_commit_hash 
+          }
+        :ets.insert(__MODULE__, {:config, next_state.config})
+        execute(state_change_fun, state.config, next_state.config)
+        {:noreply, next_state}
+      {:error, _} ->
+        {:noreply, state}
     end
-    {:noreply, next_state}
   end
 
   defp schedule_next_pull(delay) when is_integer(delay) do

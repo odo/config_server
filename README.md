@@ -14,7 +14,7 @@ The package can be installed by adding `config_server` to your list of dependenc
 ```elixir
 def deps do
   [
-    {:config_server, "~> 0.3.0"}
+    {:config_server, "~> 0.3.1"}
   ]
 end
 ```

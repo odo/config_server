@@ -109,11 +109,11 @@ defmodule ConfigServer do
   end
   
   defp execute({module, function}, old_config, new_config) do
-      spawn(fn() -> apply(module, function, [old_config, new_config]) end)
+      apply(module, function, [old_config, new_config])
   end
 
   defp execute(state_change_fun, old_config, new_config) when is_function(state_change_fun) do
-      spawn(fn() -> state_change_fun.(old_config, new_config) end)
+      state_change_fun.(old_config, new_config)
   end
 
 end

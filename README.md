@@ -31,25 +31,27 @@ config :config_server,
   state_change_fun: fn(old_config, new_config) -> IO.inspect({old_config, new_config}) end
 ```
 
-If you are using `ssh`:
+If you are using `ssh` and want a specific branch to be used:
 
 ```
 config :config_server,
   repo_url: "git@github.com:odo/config_server",
   git_ssh_command: "ssh -i ~/.ssh/my_private_key", 
   repo_path: "/tmp/config_server_checkout",
+  branch: "staging",
   pull_interval_ms: 1000,
   state_change_fun: fn(old_config, new_config) -> IO.inspect({old_config, new_config}) end
 ```
 
 
 `state_change_fun` can be skipped or can be defined as `{module, function}`.
+If `state_change_fun` returns `:error` or `{:error, something}` then that means that the configuration is faulty and `ConfigServer` rolls back to the previous configuration.
 
 ## Usage
 
-To retrieve the current config, call `ConfigServer.config()`.
+To retrieve the current configuration, call `ConfigServer.config()`.
 
-Whenever a new version of the config is pulled, `state_change_fun` will be called with the old config and  the new config as arguments.
+Whenever a new version of the configuration is pulled, `state_change_fun` will be called with the old config and  the new config as arguments.
 At application start it will be called once with `nil` and the current config.
 
 

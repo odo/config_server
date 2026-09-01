@@ -137,8 +137,9 @@ defmodule ConfigServer do
     end
   end
 
-  defp execute(callback, old_config, new_config) do
-    case do_execute(callback, old_config, new_config) do
+  defp execute(nil, _old_config, _new_config), do: :ok
+  defp execute(state_change_fun, old_config, new_config) do
+    case do_execute(state_change_fun, old_config, new_config) do
       :error -> {:error, :unknown}
       {:error, error} -> {:error, error}
       _ -> :ok

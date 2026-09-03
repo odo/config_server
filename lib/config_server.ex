@@ -78,9 +78,9 @@ defmodule ConfigServer do
 
   @impl true
   def handle_cast( :initial_load, %ConfigServer{repo_path: repo_path, state_change_fun: state_change_fun, commit_hash: commit_hash} = state) do
-    next_state = %ConfigServer{state | config: Parser.parse_directory(repo_path)}
-    case execute(state_change_fun, nil, next_state.config) do
-      :ok ->
+    case execute(state_change_fun, nil, repo_path) do
+      {:ok, next_config} ->
+        next_state = %ConfigServer{state | config: next_config}
         :ets.insert(__MODULE__, {:config, next_state.config})
         schedule_next_pull(0)
         {:noreply, next_state}
@@ -103,14 +103,10 @@ defmodule ConfigServer do
         {:noreply, state}
       {:ok, next_commit_hash} ->
         Logger.info("Loading new config from #{repo_url}: #{next_commit_hash}")
-        next_state =
-          %ConfigServer{state | 
-            config:      Parser.parse_directory(repo_path), 
-            commit_hash: next_commit_hash 
-          }
-        case execute(state_change_fun, state.config, next_state.config) do
-          :ok ->
-            :ets.insert(__MODULE__, {:config, next_state.config})
+        case execute(state_change_fun, state.config, repo_path) do
+          {:ok, next_config} ->
+            next_state = %ConfigServer{state | config: next_config, commit_hash: next_commit_hash }
+            :ets.insert(__MODULE__, {:config, next_config})
             {:noreply, next_state}
           {:error, error} ->
             case commit_hash do
@@ -152,12 +148,13 @@ defmodule ConfigServer do
     end
   end
 
-  defp execute(nil, _old_config, _new_config), do: :ok
-  defp execute(state_change_fun, old_config, new_config) do
+  defp execute(nil, _old_config, _repo_path), do: :ok
+  defp execute(state_change_fun, old_config, repo_path) do
+    new_config = Parser.parse_directory(repo_path)
     case do_execute(state_change_fun, old_config, new_config) do
       :error -> {:error, :unknown}
       {:error, error} -> {:error, error}
-      _ -> :ok
+      _ -> {:ok, new_config}
     end
   rescue
     error -> {:error, error}

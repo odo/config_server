@@ -4,7 +4,7 @@ defmodule ConfigServer.MixProject do
   def project do
     [
       app: :config_server,
-      version: "0.3.4",
+      version: "0.4.0",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       package: package(),

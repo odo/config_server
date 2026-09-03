@@ -24,7 +24,7 @@ defmodule ConfigServer.Git do
       true ->
         {:ok, commit_hash(git_path)}
       false -> Logger.info("Cloning config repo from #{repo_url} into #{repo_path}")
-        case System.cmd("git", ["clone", repo_url, repo_path], env: env(git_ssh_command)) |> IO.inspect do
+        case System.cmd("git", ["clone", repo_url, repo_path], env: env(git_ssh_command)) do
         {_, 0} ->
             {:ok, commit_hash(repo_path)} 
         {_, exit_code} ->

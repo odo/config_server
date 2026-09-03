@@ -4,14 +4,14 @@ defmodule ParserTest do
   alias ConfigServer.Parser
 
   test "parse directory" do
-    expected = %{
+    expected = {:ok, %{
       "top" => %{"foo" => "bar"},
       "top.txt" => "foobar\n",
       "nested" => %{
         "another" => %{"bar" => 42},
         "something.txt" => "at the end of the universe\n"
       }
-    }
+    }}
     assert expected == Parser.parse_directory("./test/test_dir")
   end
 

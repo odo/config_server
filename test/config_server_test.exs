@@ -1,4 +1,5 @@
 defmodule ConfigServerTest do
+  alias ConfigServer.Parser
   use ExUnit.Case, async: false
   doctest ConfigServer
 
@@ -17,6 +18,16 @@ defmodule ConfigServerTest do
     assert_receive({:config_change, {nil, %{"test" => %{}}}}, 1)
 
     assert %{"test" => %{}} == ConfigServer.config()
+  end
+  
+  test "init and load good config with custom parser" do
+    {origin_dir, checkout_dir, _commit_hash} = init()
+    state = init_state(origin_dir, checkout_dir, state_change_fun(:ok), fn(repo_path) -> {:ok, File.ls!(repo_path)} end)
+
+    ConfigServer.handle_cast(:initial_load, state)
+    assert_receive({:config_change, {nil, ["test.json", ".git"]}}, 1)
+
+    assert ["test.json", ".git"] == ConfigServer.config()
   end
   
   test "init and load broken config" do
@@ -83,10 +94,32 @@ defmodule ConfigServerTest do
 
   end
 
+  test "init and load good config, then one that breaks the parser, then roll back, then load next good one" do
+    {origin_dir, checkout_dir, init_commit_hash} = init()
+    state = init_state(origin_dir, checkout_dir, state_change_fun(:ok))
+
+    {:noreply, state} = ConfigServer.handle_cast(:initial_load, state)
+    assert_receive({:config_change, {nil, %{"test" => %{}}}}, 1)
+    assert %{"test" => %{}} == ConfigServer.config()
+    
+    _bad_commit_hash = add_file_and_commit("test2.json", origin_dir)
+    state = %ConfigServer{state | parsing_fun: fn() -> throw(:whaaa) end}
+    {:noreply, state} = ConfigServer.handle_info(:pull_configs, state)
+    assert_receive(:pull_configs, 1)
+    assert init_commit_hash == commit_hash(checkout_dir)
+    assert %{"test" => %{}} == ConfigServer.config()
+
+    good_commit_hash = add_file_and_commit("test3.json", origin_dir)
+    state = %ConfigServer{state | parsing_fun: {Parser, :parse_directory}}
+    {:noreply, _state} = ConfigServer.handle_info(:pull_configs, state)
+    assert_receive({:config_change, {%{"test" => %{}}, %{"test" => %{}, "test2" => %{}, "test3" => %{}}}}, 1)
+    assert good_commit_hash == commit_hash(checkout_dir)
+    assert %{"test" => %{}, "test2" => %{}, "test3" => %{}} == ConfigServer.config()
+  end
+
   def state_change_fun(return_value) do
     me = self()
     fn(old_config, new_config) ->
-      IO.inspect({old_config, new_config}, label: :callback)
       Process.send(me, {:config_change, {old_config, new_config}}, [])
       return_value
     end
@@ -113,7 +146,7 @@ defmodule ConfigServerTest do
     commit_hash(origin_dir)
   end
 
-  defp init_state(origin_dir, checkout_dir, state_change_fun) do
+  defp init_state(origin_dir, checkout_dir, state_change_fun, parsing_fun \\ nil) do
     {:ok, state} =
     ConfigServer.init(%{
         repo_url: "file://" <> origin_dir,
@@ -121,7 +154,8 @@ defmodule ConfigServerTest do
         branch: nil,
         git_ssh_command: nil,
         pull_interval_ms: 1_000_000,
-        state_change_fun: state_change_fun
+        state_change_fun: state_change_fun,
+        parsing_fun: parsing_fun
       }
     )
     state

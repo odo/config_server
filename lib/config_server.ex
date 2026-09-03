@@ -60,19 +60,34 @@ defmodule ConfigServer do
          (is_binary(git_ssh_command) or is_nil(git_ssh_command)) and
          is_integer(pull_interval_ms) and pull_interval_ms > 0 and
          (is_nil(state_change_fun) or is_function(state_change_fun) or is_tuple(state_change_fun)) do
-    {:ok, _commit_hash} = Git.ensure_checkout(repo_url, repo_path, git_ssh_command)
+    {:ok, commit_hash} = Git.ensure_checkout(repo_url, repo_path, git_ssh_command)
     branch = branch || Git.default_branch(repo_path, git_ssh_command)
     initial_state = %ConfigServer{
       repo_url: repo_url,
       branch: branch,
+      commit_hash: commit_hash,
       git_ssh_command: git_ssh_command,
       repo_path: repo_path,
       pull_interval_ms: pull_interval_ms,
       state_change_fun: state_change_fun,
       ets_table: :ets.new(__MODULE__, [:set, :protected, :named_table, {:read_concurrency, true}])
     }
-    schedule_next_pull(0)
+    GenServer.cast(__MODULE__, :initial_load)
     {:ok, initial_state}
+  end
+
+  @impl true
+  def handle_cast( :initial_load, %ConfigServer{repo_path: repo_path, state_change_fun: state_change_fun, commit_hash: commit_hash} = state) do
+    next_state = %ConfigServer{state | config: Parser.parse_directory(repo_path)}
+    case execute(state_change_fun, nil, next_state.config) do
+      :ok ->
+        :ets.insert(__MODULE__, {:config, next_state.config})
+        schedule_next_pull(0)
+        {:noreply, next_state}
+      {:error, error} ->
+        Logger.error("Config callback returned error for #{commit_hash} (no known state to roll back to) : #{inspect({:error, error})}")
+        throw({:error, :no_known_good_state})
+    end
   end
 
   @impl true
@@ -93,17 +108,17 @@ defmodule ConfigServer do
             config:      Parser.parse_directory(repo_path), 
             commit_hash: next_commit_hash 
           }
-        :ets.insert(__MODULE__, {:config, next_state.config})
         case execute(state_change_fun, state.config, next_state.config) do
           :ok ->
+            :ets.insert(__MODULE__, {:config, next_state.config})
             {:noreply, next_state}
           {:error, error} ->
             case commit_hash do
               nil ->
-                Logger.error("Config callback returned error (no known state to roll back to) : #{inspect(error)}")
+                Logger.error("Config callback returned error for #{next_commit_hash} (no known state to roll back to) : #{inspect({:error, error})}")
                 throw({:error, :no_known_good_state})
               _ ->
-                Logger.error("Config callback returned error (rolling back to #{commit_hash}) : #{inspect(error)}")
+                Logger.error("Config callback returned error for #{next_commit_hash} (rolling back to #{commit_hash}) : #{inspect({:error, error})}")
                 {:ok, ^commit_hash} = Git.checkout(commit_hash, repo_path, git_ssh_command)
                 {:noreply, state}
             end

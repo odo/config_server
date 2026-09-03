@@ -24,7 +24,7 @@ defmodule ConfigServer.Git do
       true ->
         {:ok, commit_hash(git_path)}
       false -> Logger.info("Cloning config repo from #{repo_url} into #{repo_path}")
-        case System.cmd("git", ["clone", repo_url, repo_path], env: env(git_ssh_command)) do
+        case System.cmd("git", ["clone", repo_url, repo_path], env: env(git_ssh_command)) |> IO.inspect do
         {_, 0} ->
             {:ok, commit_hash(repo_path)} 
         {_, exit_code} ->
@@ -34,6 +34,8 @@ defmodule ConfigServer.Git do
     end
   end
 
+  def checkout(nil, _, _git_ssh_command) do
+  end
   def checkout(commit_hash, repo_path, git_ssh_command) do
     {_, 0} = System.cmd("git", ["checkout", commit_hash], cd: repo_path, env: env(git_ssh_command), stderr_to_stdout: true)
     {:ok, commit_hash}

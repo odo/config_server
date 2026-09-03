@@ -43,17 +43,23 @@ config :config_server,
   state_change_fun: fn(old_config, new_config) -> IO.inspect({old_config, new_config}) end
 ```
 
+### repo_url
+This can be
+* A directory `file://path/to/repo/directory`
+* A HTTP URL like `https://token@github.com/foo/bar`
+* SSH path like `git@github.com:odo/config_server` together with `git_ssh_command` (see above) 
 
-`state_change_fun` can be skipped or can be defined as `{module, function}`.
+### repo_path
+A path where the checkout of your configuration repository lives.
+
+### state_change_fun as (any(), any()) -> :ok | :error | {:error, any()}
+This can be skipped or can be defined as `{module, function}`.
+`ConfigServert` will pass in the old and new configuration as arguments. Intially, the old config will be `nil`. 
 If `state_change_fun` returns `:error` or `{:error, something}` then that means that the configuration is faulty and `ConfigServer` rolls back to the previous configuration.
 
 ## Usage
 
 To retrieve the current configuration, call `ConfigServer.config()`.
-
-Whenever a new version of the configuration is pulled, `state_change_fun` will be called with the old config and  the new config as arguments.
-At application start it will be called once with `nil` and the current config.
-
 
 ## Format
 
